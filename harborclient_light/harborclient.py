@@ -3,45 +3,19 @@
 import json
 import logging
 import requests
+from requests.utils import requote_uri
+from requests.auth import HTTPBasicAuth
 
 logging.basicConfig(level=logging.INFO)
 
-
 class HarborClient(object):
-    def __init__(self, host, user, password, protocol="http", verify_ssl_cert=True):
+    def __init__(self, host, user, password, protocol="https", verify_ssl_cert=True):
         self.host = host
         self.user = user
         self.password = password
         self.protocol = protocol
         self.based_url = '{}://{}'.format(self.protocol, self.host)
         self.verify_ssl_cert = verify_ssl_cert
-        if self.verify_ssl_cert:
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-        self.session_id = self.login()
-
-    def __del__(self):
-        self.logout(log=False)
-
-    def login(self):
-        login_url = '{}/c/login'.format(self.based_url)
-        data = {'principal': self.user, 'password': self.password}
-        login_data = requests.post(url=login_url, data=data, verify=self.verify_ssl_cert)
-
-        if login_data.status_code == 200:
-            session_id = login_data.cookies.get('sid')
-            logging.debug('Successfully login, session id: {}'.format(session_id))
-            return session_id
-        else:
-            logging.error('Failed to login, please try again')
-            return None
-
-    def logout(self, log=True):
-        logout_url = '{}/log_out'.format(self.based_url)
-        requests.get(url=logout_url, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
-        if log:
-            logging.debug("Successfully logout")
 
     def get_project_id_by_name(self, project_name):
         """
@@ -51,7 +25,7 @@ class HarborClient(object):
         :return:
         """
         path = '{}://{}/api/projects'.format(self.protocol, self.host)
-        registry_data = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        registry_data = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
 
         if registry_data.status_code == 200 and registry_data.json():
             for project in registry_data.json():
@@ -69,7 +43,7 @@ class HarborClient(object):
         path = '{}://{}/api/search?q={}'.format(self.protocol, self.host,
                                                 query_string)
         response = requests.get(path,
-                                cookies={'sid': self.session_id})
+                                auth = HTTPBasicAuth(self.user, self.password))
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get search result: {}'.format(result))
@@ -82,7 +56,7 @@ class HarborClient(object):
         result = None
         projects_path = '{}/api/projects'.format(self.based_url)
         path = '{}?is_public={}'.format(projects_path, 1 if is_public else 0)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get projects result: {}'.format(result))
@@ -99,7 +73,7 @@ class HarborClient(object):
         """
         result = False
         path = '{}://{}/api/projects?project_name={}'.format(self.protocol, self.host, project_name)
-        response = requests.head(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.head(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = True
             logging.debug('Successfully check project existence, result: {}'.format(result))
@@ -135,7 +109,7 @@ class HarborClient(object):
 
         print(request_body)
 
-        response = requests.post(path, cookies={'sid': self.session_id},
+        response = requests.post(path, auth = HTTPBasicAuth(self.user, self.password),
                                  data=request_body, verify=self.verify_ssl_cert)
 
         if response.status_code == 201:
@@ -167,7 +141,7 @@ class HarborClient(object):
         :return: info about project
         """
         path = '{}://{}/api/projects/{}'.format(self.protocol, self.host, project_id)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get projects result: {}'.format(result))
@@ -185,7 +159,7 @@ class HarborClient(object):
         :return: True if project is deleted
         """
         path = '{}://{}/api/projects/{}'.format(self.protocol, self.host, project_id)
-        response = requests.delete(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.delete(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             logging.info('Project is deleted successfully.')
             return True
@@ -206,7 +180,7 @@ class HarborClient(object):
         result = None
         path = '{}://{}/api/statistics'.format(self.protocol, self.host)
         response = requests.get(path,
-                                cookies={'sid': self.session_id})
+                                auth = HTTPBasicAuth(self.user, self.password))
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get statistics: {}'.format(result))
@@ -219,7 +193,7 @@ class HarborClient(object):
         # TODO: support parameter
         result = None
         path = '{}://{}/api/users'.format(self.protocol, self.host)
-        response = requests.get(path, cookies={'sid': self.session_id})
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password))
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get users result: {}'.format(result))
@@ -236,7 +210,7 @@ class HarborClient(object):
                                    'password': password,
                                    'realname': realname,
                                    'comment': comment})
-        response = requests.post(path, cookies={'sid': self.session_id},
+        response = requests.post(path, auth = HTTPBasicAuth(self.user, self.password),
                                  data=request_body)
 
         if response.status_code == 201:
@@ -256,7 +230,7 @@ class HarborClient(object):
         request_body = json.dumps({'email': email,
                                    'realname': realname,
                                    'comment': comment})
-        response = requests.put(path, cookies={'sid': self.session_id},
+        response = requests.put(path, auth = HTTPBasicAuth(self.user, self.password),
                                 data=request_body)
         if response.status_code == 200:
             result = True
@@ -271,7 +245,7 @@ class HarborClient(object):
         result = False
         path = '{}://{}/api/users/{}?user_id={}'.format(self.protocol, self.host,
                                                         user_id, user_id)
-        response = requests.delete(path, cookies={'sid': self.session_id})
+        response = requests.delete(path, auth = HTTPBasicAuth(self.user, self.password))
 
         if response.status_code == 200:
             result = True
@@ -287,7 +261,7 @@ class HarborClient(object):
                                                                  user_id, user_id)
         request_body = json.dumps({'old_password': old_password,
                                    'new_password': new_password})
-        response = requests.put(path, cookies={'sid': self.session_id}, data=request_body)
+        response = requests.put(path, auth = HTTPBasicAuth(self.user, self.password), data=request_body)
 
         if response.status_code == 200:
             result = True
@@ -302,7 +276,7 @@ class HarborClient(object):
         result = False
         path = '{}://{}/api/users/{}/sysadmin?user_id={}'.format(self.protocol, self.host,
                                                                  user_id, user_id)
-        response = requests.put(path, cookies={'sid': self.session_id})
+        response = requests.put(path, auth = HTTPBasicAuth(self.user, self.password))
 
         if response.status_code == 200:
             result = True
@@ -317,7 +291,7 @@ class HarborClient(object):
         result = None
         endpoint = 'api/repositories?project_id={}'.format(project_id)
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = response.json()
             logging.debug(
@@ -335,7 +309,7 @@ class HarborClient(object):
         result = False
         endpoint = 'api/repositories/{}'.format(repo_name)
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.delete(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.delete(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = True
             logging.debug('Successfully delete repository: {}'.format(repo_name))
@@ -352,9 +326,9 @@ class HarborClient(object):
         :return: True if operation finished successfully
         """
         result = False
-        endpoint = 'api/repositories/{}/tags/{}'.format(repo_name, tag)
+        endpoint = 'api/repositories/{}/tags/{}'.format(requote_uri(repo_name), tag)
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.delete(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.delete(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = True
             logging.debug("Successfully delete tag {}:{}".format(repo_name, tag))
@@ -372,7 +346,7 @@ class HarborClient(object):
         result = None
         endpoint = 'api/repositories/{}/tags'.format(repo_name)
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get tags for {}, result: {}'.format(repo_name, result))
@@ -396,7 +370,7 @@ class HarborClient(object):
                    'Content-Type': 'application/json'}
         request_body = json.dumps({'tag': tag, 'src_image': src_image, 'override': True})
         response = requests.post(path, data=request_body, verify=self.verify_ssl_cert,
-                                 cookies={'sid': self.session_id}, headers=headers)
+                                 auth = HTTPBasicAuth(self.user, self.password), headers=headers)
 
         result = False
         if response.status_code == 200:
@@ -425,7 +399,7 @@ class HarborClient(object):
         result = False
         endpoint = 'api/repositories/{}/tags/{}'.format(repo_name, tag)
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             logging.info('{} exists in {}'.format(tag, repo_name))
             result = True
@@ -440,7 +414,7 @@ class HarborClient(object):
     def get_repository_manifests(self, repo_name, tag):
         result = None
         path = '{}://{}/api/repositories/manifests?repo_name={}&tag={}'.format(self.protocol, self.host, repo_name, tag)
-        response = requests.get(path, cookies={'sid': self.session_id})
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password))
 
         if response.status_code == 200:
             result = response.json()
@@ -456,7 +430,7 @@ class HarborClient(object):
         path = '{}://{}/api/repositories/top'.format(self.protocol, self.host)
         if count:
             path += "?count={}".format(count)
-        response = requests.get(path, cookies={'sid': self.session_id})
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password))
 
         if response.status_code == 200:
             result = response.json()
@@ -469,7 +443,7 @@ class HarborClient(object):
     def get_logs(self, lines=None, start_time=None, end_time=None):
         result = None
         path = '{}://{}/api/logs'.format(self.protocol, self.host)
-        response = requests.get(path, cookies={'sid': self.session_id})
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password))
 
         if response.status_code == 200:
             result = response.json()
@@ -486,7 +460,7 @@ class HarborClient(object):
         """
         endpoint = 'systeminfo'
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get system info: {}'.format(result))
@@ -502,7 +476,7 @@ class HarborClient(object):
         """
         endpoint = '/api/systeminfo/volumes'
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = response.json()
             logging.debug('Successfully get system info: {}'.format(result))
@@ -522,7 +496,7 @@ class HarborClient(object):
         """
         endpoint = '/configurations'
         path = '{}/{}'.format(self.based_url, endpoint)
-        response = requests.get(path, cookies={'sid': self.session_id}, verify=self.verify_ssl_cert)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
         if response.status_code == 200:
             result = response.json()
             logging.debug('Get system configurations successfully: {}'.format(result))
@@ -533,3 +507,52 @@ class HarborClient(object):
             logging.info('User does not have permission of admin role.')
         else:
             logging.error('Failed to get configurations')
+
+    def get_image_vulnerabilities(self, repo_name, tag):
+        """
+        /repositories/{repo_name}/tags/{tag}/vulnerability/details
+        Call Clair API to get the vulnerability based on the previous successful scan
+        :param repo_name: in format "project_name/image_name'
+        :param tag:
+        :return: scan details
+        """
+        result = False
+        endpoint = 'api/repositories/{}/tags/{}/vulnerability/details'.format(requote_uri(repo_name), tag)
+        path = '{}/{}'.format(self.based_url, endpoint)
+        response = requests.get(path, auth = HTTPBasicAuth(self.user, self.password), verify=self.verify_ssl_cert)
+        if response.status_code == 200:
+            result = response.json()
+            logging.debug('Get image vulnerabilities successfully: {}'.format(result))
+            return result
+        elif response.status_code == 401:
+            logging.info('Need to be logged in.')
+        elif response.status_code == 403:
+            logging.info('User does not have permission.')
+        else:
+            logging.error('Failed to get vulnerabilities')
+
+
+    def scan_image_for_vulnerabilities(self, repo_name, tag):
+        """
+        #/repositories/{repo_name}/tags/{tag}/scan
+        Call Clair API to schedule vulnerability scan
+        :param repo_name: in format "project_name/image_name'
+        :param tag:
+        :return: scan details
+        """
+        result = False
+        endpoint = 'api/repositories/{}/tags/{}/scan'.format(requote_uri(repo_name), tag)
+        path = '{}/{}'.format(self.based_url, endpoint)
+
+        headers = {'accept': 'application/json'}
+        response = requests.post(path, verify=self.verify_ssl_cert,
+                                 auth=HTTPBasicAuth(self.user, self.password), headers=headers)
+
+        if response.status_code == 200:
+            logging.debug('Scan for image vulnerabilities scheduled')
+        elif response.status_code == 401:
+            logging.info('Need to be logged in.')
+        elif response.status_code == 403:
+            logging.info('User does not have permission.')
+        else:
+            logging.error('Failed to get vulnerabilities')
